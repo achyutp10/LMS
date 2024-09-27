@@ -11,14 +11,18 @@ import Modal from 'react-bootstrap/Modal';
 import { useParams } from 'react-router-dom'
 import useAxios from '../../utils/useAxios'
 import UserData from '../plugin/UserData'
+import Toast from '../plugin/Toast'
 
 function CourseDetail() {
   const [course, setCourse] = useState([])
-  const param = useParams()
   const [variantItem, setVariantItem] = useState(null)
   const [completionPercentage, setCompletionPercentage] = useState(0)
   const [markAsCompletedStatus, setMarkAsCompletedStatus] = useState({});
   const [createNote, setCreateNote] = useState({ title: "", note: "" })
+  const [selectedNote, setSelectedNote] = useState(null)
+
+
+  const param = useParams()
 
 
   // Play lecture modal
@@ -28,14 +32,13 @@ function CourseDetail() {
     setShow(true);
     setVariantItem(variant_item);
   }
-  console.log(variantItem)
-  console.log(variantItem?.title)
 
   const [noteShow, setNoteShow] = useState(false);
   const handleNoteClose = () => setNoteShow(false);
-  const handleNoteShow = () => {
+  const handleNoteShow = (note) => {
     setNoteShow(true);
-  }
+    setSelectedNote(note)
+  };
 
   const [ConversationShow, setConversationShow] = useState(false);
   const handleConversationClose = () => setConversationShow(false);
@@ -78,6 +81,55 @@ function CourseDetail() {
       ...createNote,
       [event.target.name]: event.target.value,
     });
+  }
+
+  const handleSubmitCreateNote = async (e) => {
+    e.preventDefault()
+    const formdata = new FormData()
+    formdata.append("user_id", UserData()?.user_id || 0)
+    formdata.append("enrollment_id", param.enrollment_id)
+    formdata.append("title", createNote.title)
+    formdata.append("note", createNote.note)
+
+    try {
+      await useAxios().post(`student/course-note/${UserData()?.user_id}/${param.enrollment_id}/`, formdata).then((res) => {
+        fetchCourseDetail();
+        Toast().fire({
+          icon: "success",
+          title: "Note created",
+        })
+        handleNoteClose();
+      })
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const handleSubmitEditNote = (e, noteId) => {
+    e.preventDefault()
+    const formdata = new FormData()
+    formdata.append("user_id", UserData()?.user_id || 0)
+    formdata.append("enrollment_id", param.enrollment_id)
+    formdata.append("title", createNote.title || selectedNote?.title)
+    formdata.append("note", createNote.note || selectedNote?.note)
+
+    useAxios().patch(`student/course-note-detail/${UserData()?.user_id}/${param.enrollment_id}/${noteId}/`, formdata).then((res) => {
+      fetchCourseDetail();
+      Toast().fire({
+        icon: "success",
+        title: "Note updated",
+      })
+    })
+  }
+
+  const handleDeleteNote = (noteId) => {
+    useAxios().delete(`student/course-note-detail/${UserData()?.user_id}/${param.enrollment_id}/${noteId}/`).then((res) => {
+      fetchCourseDetail();
+      Toast().fire({
+        icon: "success",
+        title: "Note deleted",
+      })
+    })
   }
 
   return (
@@ -288,18 +340,18 @@ function CourseDetail() {
                                             <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" />
                                           </div>
                                           <div className="modal-body">
-                                            <form>
+                                            <form onSubmit={handleSubmitCreateNote}>
                                               <div className="mb-3">
                                                 <label htmlFor="exampleInputEmail1" className="form-label">
                                                   Note Title
                                                 </label>
-                                                <input type="text" className="form-control" />
+                                                <input type="text" className="form-control" name='title' onChange={handleNoteChange} />
                                               </div>
                                               <div className="mb-3">
                                                 <label htmlFor="exampleInputPassword1" className="form-label">
                                                   Note Content
                                                 </label>
-                                                <textarea className='form-control' name="" id="" cols="30" rows="10"></textarea>
+                                                <textarea className='form-control' id="" cols="30" rows="10" name='note' onChange={handleNoteChange}></textarea>
                                               </div>
                                               <button type="button" className="btn btn-secondary me-2" data-bs-dismiss="modal" ><i className='fas fa-arrow-left'></i> Close</button>
                                               <button type="submit" className="btn btn-primary">Save Note <i className='fas fa-check-circle'></i></button>
@@ -312,31 +364,32 @@ function CourseDetail() {
                                 </div>
                                 <div className="card-body p-0 pt-3">
                                   {/* Note item start */}
-                                  <div className="row g-4 p-3">
-                                    <div className="col-sm-11 col-xl-11 shadow p-3 m-3 rounded">
-                                      <h5> What is Digital Marketing What is Digital Marketing</h5>
-                                      <p>
-                                        Arranging rapturous did believe him all had supported.
-                                        Supposing so be resolving breakfast am or perfectly.
-                                        It drew a hill from me. Valley by oh twenty direct me
-                                        so. Departure defective arranging rapturous did
-                                        believe him all had supported. Family months lasted
-                                        simple set nature vulgar him. Picture for attempt joy
-                                        excited ten carried manners talking how. Family months
-                                        lasted simple set nature vulgar him. Picture for
-                                        attempt joy excited ten carried manners talking how.
-                                      </p>
-                                      {/* Buttons */}
-                                      <div className="hstack gap-3 flex-wrap">
-                                        <a onClick={handleNoteShow} className="btn btn-success mb-0">
-                                          <i className="bi bi-pencil-square me-2" /> Edit
-                                        </a>
-                                        <a href="#" className="btn btn-danger mb-0">
-                                          <i className="bi bi-trash me-2" /> Delete
-                                        </a>
+
+                                  {course?.note?.map((n, index) => (
+                                    <div className="row g-4 p-3">
+                                      <div className="col-sm-11 col-xl-11 shadow p-3 m-3 rounded">
+                                        <h5> {n.title}</h5>
+                                        <p>
+                                          {n.note}
+                                        </p>
+                                        {/* Buttons */}
+                                        <div className="hstack gap-3 flex-wrap">
+                                          <a onClick={() => handleNoteShow(n)} className="btn btn-success mb-0">
+                                            <i className="bi bi-pencil-square me-2" /> Edit
+                                          </a>
+                                          <a onClick={() => handleDeleteNote(n.id)} className="btn btn-danger mb-0">
+                                            <i className="bi bi-trash me-2" /> Delete
+                                          </a>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
+                                  ))}
+
+                                  {course?.note?.length < 1 &&
+                                    <p className='mt-3 p-3'>No Notes</p>
+                                  }
+
+
                                   <hr />
                                 </div>
                               </div>
@@ -484,19 +537,19 @@ function CourseDetail() {
       {/* Note Edit Modal */}
       <Modal show={noteShow} size='lg' onHide={handleNoteClose}>
         <Modal.Header closeButton>
-          <Modal.Title>Note: Note Title</Modal.Title>
+          <Modal.Title>Note: {selectedNote?.title}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <form>
+          <form onSubmit={(e) => handleSubmitEditNote(e, selectedNote?.id)}>
             <div className="mb-3">
               <label htmlFor="exampleInputEmail1" className="form-label">Note Title</label>
-              <input defaultValue={null} name='title' type="text" className="form-control" />
+              <input onChange={handleNoteChange} defaultValue={selectedNote?.title} name='title' type="text" className="form-control" />
             </div>
             <div className="mb-3">
               <label htmlFor="exampleInputPassword1" className="form-label">Note Content</label>
-              <textarea onChange={null} defaultValue={null} name='note' className='form-control' cols="30" rows="10"></textarea>
+              <textarea onChange={handleNoteChange} defaultValue={selectedNote?.note} name='note' className='form-control' cols="30" rows="10"></textarea>
             </div>
-            <button type="button" className="btn btn-secondary me-2" onClick={null}><i className='fas fa-arrow-left'></i> Close</button>
+            <button type="button" className="btn btn-secondary me-2" onClick={handleNoteClose}><i className='fas fa-arrow-left'></i> Close</button>
             <button type="submit" className="btn btn-primary">Save Note <i className='fas fa-check-circle'></i></button>
           </form>
         </Modal.Body>
